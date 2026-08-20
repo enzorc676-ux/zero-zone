@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+<title>ZERO ZONE</title>
+
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #07101d;
+    font-family: Arial, sans-serif;
+}
+
+#game {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+#loading {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #07101d;
+    color: white;
+}
+
+#loading h1 {
+    font-size: 42px;
+    letter-spacing: 5px;
+    margin-bottom: 12px;
+}
+
+#loading p {
+    font-size: 15px;
+    opacity: .7;
+}
+
+#hud {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none;
+}
+
+#logo {
+    position: absolute;
+    top: 18px;
+    left: 20px;
+    color: white;
+    font-size: 23px;
+    font-weight: bold;
+    letter-spacing: 3px;
+    text-shadow: 0 2px 8px #000;
+}
+
+#status {
+    position: absolute;
+    top: 58px;
+    left: 20px;
+    color: #8bd8ff;
+    font-size: 13px;
+    text-shadow: 0 2px 5px #000;
+}
+
+#crosshair {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 22px;
+    height: 22px;
+    transform: translate(-50%, -50%);
+}
+
+#crosshair::before,
+#crosshair::after {
+    content: "";
+    position: absolute;
+    background: white;
+    opacity: .85;
+}
+
+#crosshair::before {
+    width: 2px;
+    height: 22px;
+    left: 10px;
+    top: 0;
+}
+
+#crosshair::after {
+    width: 22px;
+    height: 2px;
+    left: 0;
+    top: 10px;
+}
+
+#joystick {
+    position: absolute;
+    left: 25px;
+    bottom: 30px;
+    width: 125px;
+    height: 125px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,.25);
+    background: rgba(0,0,0,.20);
+    pointer-events: auto;
+    touch-action: none;
+}
+
+#stick {
+    position: absolute;
+    left: 37px;
+    top: 37px;
+    width: 51px;
+    height: 51px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.35);
+    border: 2px solid rgba(255,255,255,.65);
+}
+
+.action {
+    position: absolute;
+    width: 66px;
+    height: 66px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,.4);
+    color: white;
+    font-weight: bold;
+    background: rgba(15,25,40,.65);
+    pointer-events: auto;
+    touch-action: none;
+}
+
+#jump {
+    right: 30px;
+    bottom: 115px;
+}
+
+#run {
+    right: 105px;
+    bottom: 35px;
+}
+
+#cameraHint {
+    position: absolute;
+    right: 20px;
+    top: 20px;
+    color: white;
+    font-size: 12px;
+    opacity: .6;
+}
+
+@media (min-width: 800px) {
+    #joystick {
+        left: 35px;
+        bottom: 35px;
+    }
+
+    #jump {
+        right: 45px;
+        bottom: 140px;
+    }
+
+    #run {
+        right: 125px;
+        bottom: 45px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="game"></canvas>
+
+<div id="loading">
+    <h1>ZERO ZONE</h1>
+    <p>CARREGANDO MUNDO 3D...</p>
+</div>
+
+<div id="hud">
+    <div id="logo">ZERO ZONE</div>
+    <div id="status">PERSONAGEM 3D • ONLINE</div>
+    <div id="cameraHint">ARRASTE PARA OLHAR</div>
+
+    <div id="crosshair"></div>
+
+    <div id="joystick">
+        <div id="stick"></div>
+    </div>
+
+    <button class="action" id="jump">PULAR</button>
+    <button class="action" id="run">CORRER</button>
+</div>
+
+<script type="module">
+
+import * as THREE from
+"https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js";
+
+/* =========================================================
+   CONFIGURAÇÃO
+========================================================= */
+
+const canvas = document.getElementById("game");
+
+const renderer = new THREE.WebGLRenderer({
+    canvas: canvas,
+    antialias: true,
+    powerPreference: "high-performance"
+});
+
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+
+
+/* =========================================================
+   CENA
+========================================================= */
+
+const scene = new THREE.Scene();
+
+scene.background = new THREE.Color(0x07101d);
+
+scene.fog = new THREE.Fog(
+    0x07101d,
+    25,
+    100
+);
+
+
+/* =========================================================
+   CÂMERA
+========================================================= */
+
+const camera = new THREE.PerspectiveCamera(
+    65,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    300
+);
+
+camera.position.set(
+    0,
+    3.2,
+    7
+);
+
+
+/* =========================================================
+   LUZES
+========================================================= */
+
+const ambient = new THREE.HemisphereLight(
+    0x8fd8ff,
+    0x172033,
+    2.2
+);
+
+scene.add(ambient);
+
+
+const sun = new THREE.DirectionalLight(
+    0xffffff,
+    3.5
+);
+
+sun.position.set(
+    8,
+    15,
+    10
+);
+
+sun.castShadow = true;
+
+sun.shadow.mapSize.width = 2048;
+sun.shadow.mapSize.height = 2048;
+
+sun.shadow.camera.left = -30;
+sun.shadow.camera.right = 30;
+sun.shadow.camera.top = 30;
+sun.shadow.camera.bottom = -30;
+
+scene.add(sun);
+
+
+/* =========================================================
+   CHÃO
+========================================================= */
+
+const groundMaterial = new THREE.MeshStandardMaterial({
+    color: 0x182536,
+    roughness: 0.85,
+    metalness: 0.05
+});
+
+const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(200, 200),
+    groundMaterial
+);
+
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+
+scene.add(ground);
+
+
+/* =========================================================
+   QUADRADOS DO CHÃO
+========================================================= */
+
+const grid = new THREE.GridHelper(
+    200,
+    100,
+    0x31506b,
+    0x1a2c3c
+);
+
+grid.position.y = 0.01;
+
+scene.add(grid);
+
+
+/* =========================================================
+   PLATAFORMA DO PERSONAGEM
+========================================================= */
+
+const platformMaterial = new THREE.MeshStandardMaterial({
+    color: 0x0d72c7,
+    roughness: 0.45,
+    metalness: 0.25
+});
+
+const platform = new THREE.Mesh(
+    new THREE.CylinderGeometry(
+        1.5,
+        1.5,
+        0.25,
+        48
+    ),
+    platformMaterial
+);
+
+platform.position.y = 0.125;
+platform.castShadow = true;
+platform.receiveShadow = true;
+
+scene.add(platform);
+
+
+/* =========================================================
+   PERSONAGEM 3D
+========================================================= */
+
+const player = new THREE.Group();
+
+player.position.set(
+    0,
+    0.25,
+    0
+);
+
+scene.add(player);
+
+
+/* =========================================================
+   MATERIAIS DO PERSONAGEM
+========================================================= */
+
+const skinMaterial = new THREE.MeshStandardMaterial({
+    color: 0x8d5a3b,
+    roughness: 0.8
+});
+
+const shirtMaterial = new THREE.MeshStandardMaterial({
+    color: 0x1769aa,
+    roughness: 0.65,
+    metalness: 0.05
+});
+
+const pantsMaterial = new THREE.MeshStandardMaterial({
+    color: 0x151b27,
+    roughness: 0.85
+});
+
+const shoeMaterial = new THREE.MeshStandardMaterial({
+    color: 0x080b10,
+    roughness: 0.8
+});
+
+const hairMaterial = new THREE.MeshStandardMaterial({
+    color: 0x111111,
+    roughness: 0.9
+});
+
+
+/* =========================================================
+   CORPO
+========================================================= */
+
+const body = new THREE.Mesh(
+    new THREE.BoxGeometry(
+        0.85,
+        1.25,
+        0.5
+    ),
+    shirtMaterial
+);
+
+body.position.y = 1.65;
+
+body.castShadow = true;
+
+player.add(body);
+
+
+/* =========================================================
+   CABEÇA
+========================================================= */
+
+const head = new THREE.Mesh(
+    new THREE.SphereGeometry(
+        0.43,
+        32,
+        32
+    ),
+    skinMaterial
+);
+
+head.scale.set(
+    0.95,
+    1.05,
+    0.95
+);
+
+head.position.y = 2.65;
+
+head.castShadow = true;
+
+player.add(head);
+
+
+/* =========================================================
+   CABELO
+========================================================= */
+
+const hair = new THREE.Mesh(
+    new THREE.SphereGeometry(
+        0.45,
+        32,
+        16
+    ),
+    hairMaterial
+);
+
+hair.scale.set(
+    1.02,
+    0.55,
+    1.02
+);
+
+hair.position.y = 2.91;
+
+hair.castShadow = true;
+
+player.add(hair);
+
+
+/* =========================================================
+   OLHOS
+========================================================= */
+
+const eyeMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.2
+});
+
+const pupilMaterial = new THREE.MeshStandardMaterial({
+    color: 0x050505,
+    roughness: 0.1
+});
+
+function createEye(x) {
+
+    const eye = new THREE.Mesh(
+        new THREE.SphereGeometry(
+            0.075,
+            16,
+            16
+        ),
+        eyeMaterial
+    );
+
+    eye.position.set(
+        x,
+        2.68,
+        0.39
+    );
+
+    player.add(eye);
+
+
+    const pupil = new THREE.Mesh(
+        new THREE.SphereGeometry(
+            0.035,
+            12,
+            12
+        ),
+        pupilMaterial
+    );
+
+    pupil.position.set(
+        x,
+        2.68,
+        0.455
+    );
+
+    player.add(pupil);
+}
+
+createEye(-0.15);
+createEye(0.15);
+
+
+/* =========================================================
+   BRAÇOS
+========================================================= */
+
+function createArm(x) {
+
+    const arm = new THREE.Mesh(
+        new THREE.CapsuleGeometry(
+            0.16,
+            0.75,
+            8,
+            16
+        ),
+        shirtMaterial
+    );
+
+    arm.position.set(
+        x,
+        1.68,
+        0
+    );
+
+    arm.rotation.z =
+        x > 0 ? -0.12 : 0.12;
+
+    arm.castShadow = true;
+
+    player.add(arm);
+
+    return arm;
+}
+
+const leftArm = createArm(-0.58);
+const rightArm = createArm(0.58);
+
+
+/* =========================================================
+   MÃOS
+========================================================= */
+
+function createHand(x) {
+
+    const hand = new THREE.Mesh(
+        new THREE.SphereGeometry(
+            0.17,
+            16,
+            16
+        ),
+        skinMaterial
+    );
+
+    hand.position.set(
+        x,
+        1.18,
+        0
+    );
+
+    hand.castShadow = true;
+
+    player.add(hand);
+
+    return hand;
+}
+
+const leftHand = createHand(-0.62);
+const rightHand = createHand(0.62);
+
+
+/* =========================================================
+   PERNAS
+========================================================= */
+
+function createLeg(x) {
+
+    const leg = new THREE.Mesh(
+        new THREE.CapsuleGeometry(
+            0.19,
+            0.85,
+            8,
+            16
+        ),
+        pantsMaterial
+    );
+
+    leg.position.set(
+        x,
+        0.78,
+        0
+    );
+
+    leg.castShadow = true;
+
+    player.add(leg);
+
+    return leg;
+}
+
+const leftLeg = createLeg(-0.23);
+const rightLeg = createLeg(0.23);
+
+
+/* =========================================================
+   SAPATOS
+========================================================= */
+
+function createShoe(x) {
+
+    const shoe = new THREE.Mesh(
+        new THREE.BoxGeometry(
+            0.36,
+            0.20,
+            0.60
+        ),
+        shoeMaterial
+    );
+
+    shoe.position.set(
+        x,
+        0.25,
+        0.10
+    );
+
+    shoe.castShadow = true;
+
+    player.add(shoe);
+
+    return shoe;
+}
+
+const leftShoe = createShoe(-0.23);
+const rightShoe = createShoe(0.23);
+
+
+/* =========================================================
+   DETALHES DO MAPA
+========================================================= */
+
+function createBox(x, y, z, sx, sy, sz, color) {
+
+    const material = new THREE.MeshStandardMaterial({
+        color: color,
+        roughness: 0.8
+    });
+
+    const box = new THREE.Mesh(
+        new THREE.BoxGeometry(
+            sx,
+            sy,
+            sz
+        ),
+        material
+    );
+
+    box.position.set(
+        x,
+        y,
+        z
+    );
+
+    box.castShadow = true;
+    box.receiveShadow = true;
+
+    scene.add(box);
+}
+
+
+/* prédios simples */
+
+createBox(
+    -8, 2.5, -10,
+    5, 5, 5,
+    0x26384b
+);
+
+createBox(
+    8, 3.5, -15,
+    6, 7, 6,
+    0x30465b
+);
+
+createBox(
+    13, 2, 2,
+    4, 4, 4,
+    0x23394b
+);
+
+createBox(
+    -13, 2, 5,
+    4, 4, 4,
+    0x2b4052
+);
+
+
+/* =========================================================
+   ESTADO DO JOGADOR
+========================================================= */
+
+const keys = {
+    forward: false,
+    backward: false,
+    left: false,
+    right: false,
+    run: false
+};
+
+let velocityY = 0;
+
+let grounded = true;
+
+let yaw = 0;
+
+let cameraDistance = 6;
+
+let joystickX = 0;
+let joystickY = 0;
+
+
+/* =========================================================
+   TECLADO
+========================================================= */
+
+window.addEventListener(
+    "keydown",
+    function(event) {
+
+        if (
+            event.key === "w" ||
+            event.key === "W" ||
+            event.key === "ArrowUp"
+        ) {
+            keys.forward = true;
+        }
+
+        if (
+            event.key === "s" ||
+            event.key === "S" ||
+            event.key === "ArrowDown"
+        ) {
+            keys.backward = true;
+        }
+
+        if (
+            event.key === "a" ||
+            event.key === "A" ||
+            event.key === "ArrowLeft"
+        ) {
+            keys.left = true;
+        }
+
+        if (
+            event.key === "d" ||
+            event.key === "D" ||
+            event.key === "ArrowRight"
+        ) {
+            keys.right = true;
+        }
+
+        if (
+            event.key === "Shift"
+        ) {
+            keys.run = true;
+        }
+
+        if (
+            event.key === " " &&
+            grounded
+        ) {
+            jump();
+        }
+    }
+);
+
+
+window.addEventListener(
+    "keyup",
+    function(event) {
+
+        if (
+            event.key === "w" ||
+            event.key === "W" ||
+            event.key === "ArrowUp"
+        ) {
+            keys.forward = false;
+        }
+
+        if (
+            event.key === "s" ||
+            event.key === "S" ||
+            event.key === "ArrowDown"
+        ) {
+            keys.backward = false;
+        }
+
+        if (
+            event.key === "a" ||
+            event.key === "A" ||
+            event.key === "ArrowLeft"
+        ) {
+            keys.left = false;
+        }
+
+        if (
+            event.key === "d" ||
+            event.key === "D" ||
+            event.key === "ArrowRight"
+        ) {
+            keys.right = false;
+        }
+
+        if (
+            event.key === "Shift"
+        ) {
+            keys.run = false;
+        }
+    }
+);
+
+
+/* =========================================================
+   PULO
+========================================================= */
+
+function jump() {
+
+    if (!grounded) return;
+
+    velocityY = 7;
+
+    grounded = false;
+}
+
+
+/* =========================================================
+   BOTÃO DE PULO
+========================================================= */
+
+const jumpButton =
+    document.getElementById("jump");
+
+jumpButton.addEventListener(
+    "pointerdown",
+    function(event) {
+
+        event.preventDefault();
+
+        jump();
+    }
+);
+
+
+/* =========================================================
+   BOTÃO CORRER
+========================================================= */
+
+const runButton =
+    document.getElementById("run");
+
+runButton.addEventListener(
+    "pointerdown",
+    function(event) {
+
+        event.preventDefault();
+
+        keys.run = true;
+    }
+);
+
+runButton.addEventListener(
+    "pointerup",
+    function() {
+
+        keys.run = false;
+    }
+);
+
+runButton.addEventListener(
+    "pointercancel",
+    function() {
+
+        keys.run = false;
+    }
+);
+
+
+/* =========================================================
+   JOYSTICK
+========================================================= */
+
+const joystick =
+    document.getElementById("joystick");
+
+const stick =
+    document.getElementById("stick");
+
+let joystickActive = false;
+
+function updateJoystick(clientX, clientY) {
+
+    const rect =
+        joystick.getBoundingClientRect();
+
+    const centerX =
+        rect.left + rect.width / 2;
+
+    const centerY =
+        rect.top + rect.height / 2;
+
+    let dx =
+        clientX - centerX;
+
+    let dy =
+        clientY - centerY;
+
+    const max =
+        rect.width * 0.32;
+
+    const distance =
+        Math.sqrt(
+            dx * dx +
+            dy * dy
+        );
+
+    if (distance > max) {
+
+        dx =
+            dx / distance * max;
+
+        dy =
+            dy / distance * max;
+    }
+
+    stick.style.transform =
+        `translate(${dx}px, ${dy}px)`;
+
+    joystickX =
+        dx / max;
+
+    joystickY =
+        dy / max;
+}
+
+
+joystick.addEventListener(
+    "pointerdown",
+    function(event) {
+
+        joystickActive = true;
+
+        joystick.setPointerCapture(
+            event.pointerId
+        );
+
+        updateJoystick(
+            event.clientX,
+            event.clientY
+        );
+    }
+);
+
+
+joystick.addEventListener(
+    "pointermove",
+    function(event) {
+
+        if (!joystickActive) return;
+
+        updateJoystick(
+            event.clientX,
+            event.clientY
+        );
+    }
+);
+
+
+function resetJoystick() {
+
+    joystickActive = false;
+
+    joystickX = 0;
+    joystickY = 0;
+
+    stick.style.transform =
+        "translate(0px, 0px)";
+}
+
+
+joystick.addEventListener(
+    "pointerup",
+    resetJoystick
+);
+
+joystick.addEventListener(
+    "pointercancel",
+    resetJoystick
+);
+
+
+/* =========================================================
+   CÂMERA TOUCH
+========================================================= */
+
+let cameraTouchActive = false;
+
+let lastTouchX = 0;
+
+let lastTouchY = 0;
+
+let cameraYaw = 0;
+
+let cameraPitch = 0.25;
+
+window.addEventListener(
+    "pointerdown",
+    function(event) {
+
+        if (
+            event.target === joystick ||
+            event.target === stick ||
+            event.target === jumpButton ||
+            event.target === runButton
+        ) {
+            return;
+        }
+
+        cameraTouchActive = true;
+
+        lastTouchX =
+            event.clientX;
+
+        lastTouchY =
+            event.clientY;
+    }
+);
+
+
+window.addEventListener(
+    "pointermove",
+    function(event) {
+
+        if (!cameraTouchActive) return;
+
+        const dx =
+            event.clientX -
+            lastTouchX;
+
+        const dy =
+            event.clientY -
+            lastTouchY;
+
+        lastTouchX =
+            event.clientX;
+
+        lastTouchY =
+            event.clientY;
+
+        cameraYaw -=
+            dx * 0.006;
+
+        cameraPitch -=
+            dy * 0.004;
+
+        cameraPitch =
+            Math.max(
+                -0.3,
+                Math.min(
+                    0.9,
+                    cameraPitch
+                )
+            );
+    }
+);
+
+
+window.addEventListener(
+    "pointerup",
+    function() {
+
+        cameraTouchActive = false;
+    }
+);
+
+
+/* =========================================================
+   ANIMAÇÃO
+========================================================= */
+
+const clock =
+    new THREE.Clock();
+
+let walkTime = 0;
+
+function animate() {
+
+    requestAnimationFrame(animate);
+
+    const delta =
+        Math.min(
+            clock.getDelta(),
+            0.05
+        );
+
+
+    /* -----------------------------------------
+       MOVIMENTO
+    ----------------------------------------- */
+
+    let moveX = 0;
+    let moveZ = 0;
+
+
+    if (keys.forward) {
+        moveZ -= 1;
+    }
+
+    if (keys.backward) {
+        moveZ += 1;
+    }
+
+    if (keys.left) {
+        moveX -= 1;
+    }
+
+    if (keys.right) {
+        moveX += 1;
+    }
+
+
+    moveX += joystickX;
+
+    moveZ += joystickY;
+
+
+    const length =
+        Math.sqrt(
+            moveX * moveX +
+            moveZ * moveZ
+        );
+
+
+    if (length > 0.1) {
+
+        moveX /= length;
+        moveZ /= length;
+
+        const speed =
+            keys.run ? 7 : 4;
+
+        const direction =
+            cameraYaw;
+
+        const sin =
+            Math.sin(direction);
+
+        const cos =
+            Math.cos(direction);
+
+        const worldX =
+            moveX * cos -
+            moveZ * sin;
+
+        const worldZ =
+            moveX * sin +
+            moveZ * cos;
+
+        player.position.x +=
+            worldX * speed * delta;
+
+        player.position.z +=
+            worldZ * speed * delta;
+
+
+        /* direção do personagem */
+
+        player.rotation.y =
+            Math.atan2(
+                worldX,
+                worldZ
+            );
+
+
+        /* animação */
+
+        walkTime +=
+            delta *
+            (keys.run ? 12 : 8);
+
+        leftLeg.rotation.x =
+            Math.sin(walkTime) * 0.45;
+
+        rightLeg.rotation.x =
+            Math.sin(walkTime + Math.PI) * 0.45;
+
+        leftArm.rotation.x =
+            Math.sin(walkTime + Math.PI) * 0.35;
+
+        rightArm.rotation.x =
+            Math.sin(walkTime) * 0.35;
+
+    } else {
+
+        leftLeg.rotation.x *= 0.85;
+        rightLeg.rotation.x *= 0.85;
+
+        leftArm.rotation.x *= 0.85;
+        rightArm.rotation.x *= 0.85;
+    }
+
+
+    /* -----------------------------------------
+       GRAVIDADE
+    ----------------------------------------- */
+
+    velocityY -=
+        18 * delta;
+
+    player.position.y +=
+        velocityY * delta;
+
+
+    if (player.position.y <= 0.25) {
+
+        player.position.y =
+            0.25;
+
+        velocityY = 0;
+
+        grounded = true;
+    }
+
+
+    /* -----------------------------------------
+       LIMITES DO MAPA
+    ----------------------------------------- */
+
+    player.position.x =
+        THREE.MathUtils.clamp(
+            player.position.x,
+            -90,
+            90
+        );
+
+    player.position.z =
+        THREE.MathUtils.clamp(
+            player.position.z,
+            -90,
+            90
+        );
+
+
+    /* -----------------------------------------
+       CÂMERA TERCEIRA PESSOA
+    ----------------------------------------- */
+
+    const target =
+        new THREE.Vector3(
+            player.position.x,
+            player.position.y + 1.7,
+            player.position.z
+        );
+
+
+    const horizontal =
+        Math.cos(cameraPitch) *
+        cameraDistance;
+
+    const vertical =
+        Math.sin(cameraPitch) *
+        cameraDistance;
+
+
+    const cameraX =
+        target.x +
+        Math.sin(cameraYaw) *
+        horizontal;
+
+    const cameraZ =
+        target.z +
+        Math.cos(cameraYaw) *
+        horizontal;
+
+    const cameraY =
+        target.y +
+        vertical;
+
+
+    camera.position.lerp(
+        new THREE.Vector3(
+            cameraX,
+            cameraY,
+            cameraZ
+        ),
+        0.12
+    );
+
+
+    camera.lookAt(target);
+
+
+    /* -----------------------------------------
+       RENDER
+    ----------------------------------------- */
+
+    renderer.render(
+        scene,
+        camera
+    );
+}
+
+
+/* =========================================================
+   RESPONSIVIDADE
+========================================================= */
+
+window.addEventListener(
+    "resize",
+    function() {
+
+        camera.aspect =
+            window.innerWidth /
+            window.innerHeight;
+
+        camera.updateProjectionMatrix();
+
+        renderer.setSize(
+            window.innerWidth,
+            window.innerHeight
+        );
+    }
+);
+
+
+/* =========================================================
+   INICIAR
+========================================================= */
+
+setTimeout(
+    function() {
+
+        document.getElementById(
+            "loading"
+        ).style.display = "none";
+
+    },
+    1200
+);
+
+animate();
+
+</script>
+
+</body>
+</html>
