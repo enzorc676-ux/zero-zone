@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>ZERO ZONE</title>
+
+<style>
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    -webkit-tap-highlight-color:transparent;
+}
+
+html,body{
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:#111;
+    font-family:Arial,sans-serif;
+    touch-action:none;
+}
+
+#game{
+    position:fixed;
+    inset:0;
+}
+
+canvas{
+    display:block;
+}
+
+#hud{
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+}
+
+#vida{
+    position:absolute;
+    top:18px;
+    left:18px;
+    width:190px;
+    color:white;
+    text-shadow:2px 2px 4px #000;
+    font-weight:bold;
+}
+
+#barra{
+    width:190px;
+    height:15px;
+    margin-top:5px;
+    border:2px solid white;
+    border-radius:10px;
+    background:#222;
+    overflow:hidden;
+}
+
+#vidaFill{
+    width:100%;
+    height:100%;
+    background:#20d060;
+}
+
+#mira{
+    position:absolute;
+    left:50%;
+    top:50%;
+    transform:translate(-50%,-50%);
+    color:white;
+    font-size:28px;
+    font-weight:bold;
+    text-shadow:0 0 5px black;
+}
+
+#movimento{
+    position:absolute;
+    left:20px;
+    bottom:25px;
+    width:175px;
+    pointer-events:auto;
+}
+
+.linha{
+    display:flex;
+    justify-content:center;
+    gap:8px;
+}
+
+.botao{
+    width:55px;
+    height:55px;
+    margin:4px;
+    border-radius:50%;
+    border:2px solid white;
+    background:rgba(0,0,0,.55);
+    color:white;
+    font-size:20px;
+    font-weight:bold;
+    user-select:none;
+}
+
+.botao:active{
+    background:rgba(255,255,255,.3);
+    transform:scale(.92);
+}
+
+#acoes{
+    position:absolute;
+    right:20px;
+    bottom:28px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:12px;
+    pointer-events:auto;
+}
+
+.acao{
+    border:2px solid white;
+    color:white;
+    background:rgba(0,0,0,.6);
+    font-weight:bold;
+    border-radius:50%;
+    user-select:none;
+}
+
+#pular{
+    width:82px;
+    height:82px;
+}
+
+#correr{
+    width:70px;
+    height:48px;
+    border-radius:25px;
+}
+
+#titulo{
+    position:absolute;
+    top:18px;
+    right:18px;
+    color:white;
+    font-size:20px;
+    font-weight:bold;
+    letter-spacing:2px;
+    text-shadow:2px 2px 5px black;
+}
+</style>
+</head>
+
+<body>
+
+<div id="game"></div>
+
+<div id="hud">
+
+    <div id="titulo">ZERO ZONE</div>
+
+    <div id="vida">
+        100 HP
+        <div id="barra">
+            <div id="vidaFill"></div>
+        </div>
+    </div>
+
+    <div id="mira">+</div>
+
+    <div id="movimento">
+
+        <div class="linha">
+            <button class="botao" id="frente">▲</button>
+        </div>
+
+        <div class="linha">
+            <button class="botao" id="esquerda">◀</button>
+            <button class="botao" id="tras">▼</button>
+            <button class="botao" id="direita">▶</button>
+        </div>
+
+    </div>
+
+    <div id="acoes">
+        <button class="acao" id="pular">PULAR</button>
+        <button class="acao" id="correr">CORRER</button>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+
+<script>
+
+/* =====================================================
+   ZERO ZONE
+   MOTOR 3D - VERSÃO BASE
+   ===================================================== */
+
+
+/* -----------------------------------------------------
+   CENA
+----------------------------------------------------- */
+
+const scene = new THREE.Scene();
+
+scene.background = new THREE.Color(0x82b7e8);
+
+scene.fog = new THREE.Fog(
+    0x82b7e8,
+    35,
+    150
+);
+
+
+/* -----------------------------------------------------
+   CÂMERA
+----------------------------------------------------- */
+
+const camera = new THREE.PerspectiveCamera(
+    65,
+    innerWidth / innerHeight,
+    0.1,
+    500
+);
+
+camera.position.set(
+    0,
+    3.5,
+    7
+);
+
+
+/* -----------------------------------------------------
+   RENDERIZADOR
+----------------------------------------------------- */
+
+const renderer = new THREE.WebGLRenderer({
+    antialias:true
+});
+
+renderer.setSize(
+    innerWidth,
+    innerHeight
+);
+
+renderer.setPixelRatio(
+    Math.min(devicePixelRatio,2)
+);
+
+renderer.shadowMap.enabled = true;
+
+renderer.shadowMap.type =
+    THREE.PCFSoftShadowMap;
+
+document
+    .getElementById("game")
+    .appendChild(renderer.domElement);
+
+
+/* -----------------------------------------------------
+   ILUMINAÇÃO
+----------------------------------------------------- */
+
+const ambiente =
+    new THREE.HemisphereLight(
+        0xffffff,
+        0x405060,
+        2
+    );
+
+scene.add(ambiente);
+
+
+const sol =
+    new THREE.DirectionalLight(
+        0xffffff,
+        3.5
+    );
+
+sol.position.set(
+    -25,
+    35,
+    20
+);
+
+sol.castShadow = true;
+
+sol.shadow.mapSize.width = 2048;
+sol.shadow.mapSize.height = 2048;
+
+sol.shadow.camera.left = -60;
+sol.shadow.camera.right = 60;
+sol.shadow.camera.top = 60;
+sol.shadow.camera.bottom = -60;
+
+sol.shadow.camera.near = 0.5;
+sol.shadow.camera.far = 120;
+
+scene.add(sol);
+
+
+/* -----------------------------------------------------
+   CHÃO
+----------------------------------------------------- */
+
+const chao =
+    new THREE.Mesh(
+
+        new THREE.PlaneGeometry(
+            200,
+            200
+        ),
+
+        new THREE.MeshStandardMaterial({
+            color:0x3d9148,
+            roughness:.9
+        })
+    );
+
+chao.rotation.x =
+    -Math.PI / 2;
+
+chao.receiveShadow = true;
+
+scene.add(chao);
+
+
+/* -----------------------------------------------------
+   PLATAFORMA
+----------------------------------------------------- */
+
+const plataforma =
+    new THREE.Mesh(
+
+        new THREE.BoxGeometry(
+            20,
+            .5,
+            20
+        ),
+
+        new THREE.MeshStandardMaterial({
+            color:0x555555,
+            roughness:.8
+        })
+    );
+
+plataforma.position.y = -.25;
+
+plataforma.receiveShadow = true;
+
+scene.add(plataforma);
+
+
+/* =====================================================
+   PERSONAGEM 3D
+   ===================================================== */
+
+const player =
+    new THREE.Group();
+
+player.position.set(
+    0,
+    0,
+    0
+);
+
+scene.add(player);
+
+
+/* -----------------------------------------------------
+   MATERIAIS
+----------------------------------------------------- */
+
+const pele =
+    new THREE.MeshStandardMaterial({
+        color:0xc98460,
+        roughness:.7
+    });
+
+const camisa =
+    new THREE.MeshStandardMaterial({
+        color:0x1267a5,
+        roughness:.75
+    });
+
+const calca =
+    new THREE.MeshStandardMaterial({
+        color:0x20242c,
+        roughness:.85
+    });
+
+const sapato =
+    new THREE.MeshStandardMaterial({
+        color:0x101010,
+        roughness:.9
+    });
+
+const cabelo =
+    new THREE.MeshStandardMaterial({
+        color:0x111111,
+        roughness:.8
+    });
+
+
+/* -----------------------------------------------------
+   CORPO
+----------------------------------------------------- */
+
+const corpo =
+    new THREE.Mesh(
+
+        new THREE.CapsuleGeometry(
+            .42,
+            .72,
+            8,
+            16
+        ),
+
+        camisa
+    );
+
+corpo.position.y = 1.25;
+
+corpo.castShadow = true;
+
+player.add(corpo);
+
+
+/* -----------------------------------------------------
+   CABEÇA
+----------------------------------------------------- */
+
+const cabeca =
+    new THREE.Mesh(
+
+        new THREE.SphereGeometry(
+            .36,
+            24,
+            24
+        ),
+
+        pele
+    );
+
+cabeca.position.y = 2.15;
+
+cabeca.castShadow = true;
+
+player.add(cabeca);
+
+
+/* -----------------------------------------------------
+   CABELO
+----------------------------------------------------- */
+
+const cabeloMesh =
+    new THREE.Mesh(
+
+        new THREE.SphereGeometry(
+            .37,
+            24,
+            16,
+            0,
+            Math.PI*2,
+            0,
+            Math.PI*.5
+        ),
+
+        cabelo
+    );
+
+cabeloMesh.position.y = 2.28;
+
+cabeloMesh.castShadow = true;
+
+player.add(cabeloMesh);
+
+
+/* -----------------------------------------------------
+   BRAÇOS
+----------------------------------------------------- */
+
+const bracoGeo =
+    new THREE.CapsuleGeometry(
+        .13,
+        .55,
+        6,
+        12
+    );
+
+const bracoEsq =
+    new THREE.Mesh(
+        bracoGeo,
+        camisa
+    );
+
+bracoEsq.position.set(
+    -.53,
+    1.35,
+    0
+);
+
+bracoEsq.castShadow = true;
+
+player.add(bracoEsq);
+
+
+const bracoDir =
+    new THREE.Mesh(
+        bracoGeo,
+        camisa
+    );
+
+bracoDir.position.set(
+    .53,
+    1.35,
+    0
+);
+
+bracoDir.castShadow = true;
+
+player.add(bracoDir);
+
+
+/* -----------------------------------------------------
+   PERNAS
+----------------------------------------------------- */
+
+const pernaGeo =
+    new THREE.CapsuleGeometry(
+        .16,
+        .65,
+        6,
+        12
+    );
+
+const pernaEsq =
+    new THREE.Mesh(
+        pernaGeo,
+        calca
+    );
+
+pernaEsq.position.set(
+    -.22,
+    .55,
+    0
+);
+
+pernaEsq.castShadow = true;
+
+player.add(pernaEsq);
+
+
+const pernaDir =
+    new THREE.Mesh(
+        pernaGeo,
+        calca
+    );
+
+pernaDir.position.set(
+    .22,
+    .55,
+    0
+);
+
+pernaDir.castShadow = true;
+
+player.add(pernaDir);
+
+
+/* -----------------------------------------------------
+   SAPATOS
+----------------------------------------------------- */
+
+const sapatoGeo =
+    new THREE.BoxGeometry(
+        .3,
+        .16,
+        .48
+    );
+
+
+const sapatoEsq =
+    new THREE.Mesh(
+        sapatoGeo,
+        sapato
+    );
+
+sapatoEsq.position.set(
+    -.22,
+    .12,
+    -.08
+);
+
+sapatoEsq.castShadow = true;
+
+player.add(sapatoEsq);
+
+
+const sapatoDir =
+    new THREE.Mesh(
+        sapatoGeo,
+        sapato
+    );
+
+sapatoDir.position.set(
+    .22,
+    .12,
+    -.08
+);
+
+sapatoDir.castShadow = true;
+
+player.add(sapatoDir);
+
+
+/* =====================================================
+   CONTROLES
+===================================================== */
+
+const keys = {
+
+    frente:false,
+    tras:false,
+    esquerda:false,
+    direita:false,
+    correr:false
+
+};
+
+
+/* -----------------------------------------------------
+   BOTÕES TOUCH
+----------------------------------------------------- */
+
+function segurar(
+    elemento,
+    nome
+){
+
+    elemento.addEventListener(
+        "pointerdown",
+        e=>{
+            e.preventDefault();
+            keys[nome]=true;
+        }
+    );
+
+    elemento.addEventListener(
+        "pointerup",
+        e=>{
+            e.preventDefault();
+            keys[nome]=false;
+        }
+    );
+
+    elemento.addEventListener(
+        "pointercancel",
+        ()=>{
+            keys[nome]=false;
+        }
+    );
+
+    elemento.addEventListener(
+        "pointerleave",
+        ()=>{
+            keys[nome]=false;
+        }
+    );
+}
+
+
+segurar(
+    document.getElementById("frente"),
+    "frente"
+);
+
+segurar(
+    document.getElementById("tras"),
+    "tras"
+);
+
+segurar(
+    document.getElementById("esquerda"),
+    "esquerda"
+);
+
+segurar(
+    document.getElementById("direita"),
+    "direita"
+);
+
+segurar(
+    document.getElementById("correr"),
+    "correr"
+);
+
+
+/* -----------------------------------------------------
+   TECLADO
+----------------------------------------------------- */
+
+addEventListener(
+    "keydown",
+    e=>{
+
+        if(
+            e.key==="w" ||
+            e.key==="ArrowUp"
+        )
+            keys.frente=true;
+
+        if(
+            e.key==="s" ||
+            e.key==="ArrowDown"
+        )
+            keys.tras=true;
+
+        if(
+            e.key==="a" ||
+            e.key==="ArrowLeft"
+        )
+            keys.esquerda=true;
+
+        if(
+            e.key==="d" ||
+            e.key==="ArrowRight"
+        )
+            keys.direita=true;
+
+        if(e.key==="Shift")
+            keys.correr=true;
+
+        if(e.code==="Space")
+            pular();
+
+    }
+);
+
+
+addEventListener(
+    "keyup",
+    e=>{
+
+        if(
+            e.key==="w" ||
+            e.key==="ArrowUp"
+        )
+            keys.frente=false;
+
+        if(
+            e.key==="s" ||
+            e.key==="ArrowDown"
+        )
+            keys.tras=false;
+
+        if(
+            e.key==="a" ||
+            e.key==="ArrowLeft"
+        )
+            keys.esquerda=false;
+
+        if(
+            e.key==="d" ||
+            e.key==="ArrowRight"
+        )
+            keys.direita=false;
+
+        if(e.key==="Shift")
+            keys.correr=false;
+
+    }
+);
+
+
+/* =====================================================
+   PULO
+===================================================== */
+
+let velocidadeY = 0;
+
+let noChao = true;
+
+function pular(){
+
+    if(!noChao)
+        return;
+
+    velocidadeY = 7;
+
+    noChao=false;
+}
+
+
+document
+    .getElementById("pular")
+    .addEventListener(
+        "pointerdown",
+        pular
+    );
+
+
+/* =====================================================
+   CÂMERA
+===================================================== */
+
+const cameraSuave =
+    new THREE.Vector3();
+
+const alvoCamera =
+    new THREE.Vector3();
+
+
+/* =====================================================
+   ANIMAÇÃO
+===================================================== */
+
+const clock =
+    new THREE.Clock();
+
+let tempoAndar=0;
+
+
+function animate(){
+
+    requestAnimationFrame(
+        animate
+    );
+
+    const delta =
+        Math.min(
+            clock.getDelta(),
+            .05
+        );
+
+
+    /* -----------------------------------------------
+       MOVIMENTO
+    ------------------------------------------------ */
+
+    let x=0;
+    let z=0;
+
+    if(keys.frente)
+        z--;
+
+    if(keys.tras)
+        z++;
+
+    if(keys.esquerda)
+        x--;
+
+    if(keys.direita)
+        x++;
+
+
+    const tamanho =
+        Math.sqrt(
+            x*x+z*z
+        );
+
+
+    if(tamanho>0){
+
+        x/=tamanho;
+        z/=tamanho;
+
+        const velocidade =
+            keys.correr
+            ? 6
+            : 3.5;
+
+
+        player.position.x +=
+            x*velocidade*delta;
+
+        player.position.z +=
+            z*velocidade*delta;
+
+
+        /* -------------------------------------------
+           ROTACIONAR PERSONAGEM
+        ------------------------------------------- */
+
+        const rotacao =
+            Math.atan2(
+                x,
+                z
+            );
+
+
+        let diferenca =
+            rotacao -
+            player.rotation.y;
+
+
+        while(diferenca>Math.PI)
+            diferenca-=Math.PI*2;
+
+        while(diferenca<-Math.PI)
+            diferenca+=Math.PI*2;
+
+
+        player.rotation.y +=
+            diferenca*10*delta;
+
+
+        /* -------------------------------------------
+           ANIMAÇÃO DAS PERNAS
+        ------------------------------------------- */
+
+        tempoAndar +=
+            delta *
+            (keys.correr ? 12 : 8);
+
+
+        pernaEsq.rotation.x =
+            Math.sin(tempoAndar)*.5;
+
+        pernaDir.rotation.x =
+            -Math.sin(tempoAndar)*.5;
+
+        bracoEsq.rotation.x =
+            -Math.sin(tempoAndar)*.35;
+
+        bracoDir.rotation.x =
+            Math.sin(tempoAndar)*.35;
+
+    }else{
+
+        pernaEsq.rotation.x*=.8;
+        pernaDir.rotation.x*=.8;
+
+        bracoEsq.rotation.x*=.8;
+        bracoDir.rotation.x*=.8;
+
+    }
+
+
+    /* -----------------------------------------------
+       GRAVIDADE
+    ------------------------------------------------ */
+
+    velocidadeY -=
+        18*delta;
+
+    player.position.y +=
+        velocidadeY*delta;
+
+
+    if(player.position.y<=0){
+
+        player.position.y=0;
+
+        velocidadeY=0;
+
+        noChao=true;
+
+    }
+
+
+    /* -----------------------------------------------
+       LIMITES
+    ------------------------------------------------ */
+
+    player.position.x =
+        THREE.MathUtils.clamp(
+            player.position.x,
+            -95,
+            95
+        );
+
+    player.position.z =
+        THREE.MathUtils.clamp(
+            player.position.z,
+            -95,
+            95
+        );
+
+
+    /* -----------------------------------------------
+       CÂMERA TERCEIRA PESSOA
+    ------------------------------------------------ */
+
+    alvoCamera.set(
+        player.position.x,
+        player.position.y+1.35,
+        player.position.z
+    );
+
+
+    const cameraDesejada =
+        new THREE.Vector3(
+            player.position.x,
+            player.position.y+3.5,
+            player.position.z+7
+        );
+
+
+    cameraSuave.lerp(
+        cameraDesejada,
+        1-Math.pow(.001,delta)
+    );
+
+
+    camera.position.copy(
+        cameraSuave
+    );
+
+
+    camera.lookAt(
+        alvoCamera
+    );
+
+
+    /* -----------------------------------------------
+       RENDER
+    ------------------------------------------------ */
+
+    renderer.render(
+        scene,
+        camera
+    );
+
+}
+
+
+/* =====================================================
+   TAMANHO DA TELA
+===================================================== */
+
+addEventListener(
+    "resize",
+    ()=>{
+
+        camera.aspect =
+            innerWidth/innerHeight;
+
+        camera.updateProjectionMatrix();
+
+        renderer.setSize(
+            innerWidth,
+            innerHeight
+        );
+
+    }
+);
+
+
+/* =====================================================
+   INICIAR
+===================================================== */
+
+animate();
+
+</script>
+
+</body>
+</html>
