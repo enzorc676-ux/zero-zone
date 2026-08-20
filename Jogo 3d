@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<title>ZERO ZONE - 3D</title>
+
+<style>
+html,body{
+    margin:0;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:#050505;
+}
+
+canvas{
+    display:block;
+    width:100%;
+    height:100%;
+}
+
+#loading{
+    position:fixed;
+    inset:0;
+    background:#050505;
+    color:white;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    font-family:Arial;
+    font-size:22px;
+    z-index:10;
+}
+</style>
+</head>
+
+<body>
+
+<div id="loading">CARREGANDO ZERO ZONE 3D...</div>
+
+<script type="module">
+
+import * as THREE from
+"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
+
+
+// ================================
+// CENA
+// ================================
+
+const scene = new THREE.Scene();
+
+scene.background =
+    new THREE.Color(0x87ceeb);
+
+
+// ================================
+// CÂMERA
+// ================================
+
+const camera =
+    new THREE.PerspectiveCamera(
+        70,
+        innerWidth / innerHeight,
+        0.1,
+        1000
+    );
+
+camera.position.set(
+    0,
+    4,
+    8
+);
+
+
+// ================================
+// RENDERIZADOR
+// ================================
+
+const renderer =
+    new THREE.WebGLRenderer({
+        antialias:true
+    });
+
+renderer.setSize(
+    innerWidth,
+    innerHeight
+);
+
+renderer.setPixelRatio(
+    Math.min(devicePixelRatio,2)
+);
+
+renderer.shadowMap.enabled = true;
+
+document.body.appendChild(
+    renderer.domElement
+);
+
+
+// ================================
+// LUZ
+// ================================
+
+const luz =
+    new THREE.HemisphereLight(
+        0xffffff,
+        0x444444,
+        2
+    );
+
+scene.add(luz);
+
+
+const sol =
+    new THREE.DirectionalLight(
+        0xffffff,
+        3
+    );
+
+sol.position.set(
+    10,
+    20,
+    10
+);
+
+sol.castShadow = true;
+
+scene.add(sol);
+
+
+// ================================
+// CHÃO
+// ================================
+
+const ground =
+    new THREE.Mesh(
+
+        new THREE.BoxGeometry(
+            50,
+            0.3,
+            50
+        ),
+
+        new THREE.MeshStandardMaterial({
+            color:0x333333
+        })
+
+    );
+
+ground.position.y = -0.15;
+
+ground.receiveShadow = true;
+
+scene.add(ground);
+
+
+// ================================
+// PERSONAGEM
+// ================================
+
+const player =
+    new THREE.Group();
+
+scene.add(player);
+
+
+// CORPO
+
+const body =
+    new THREE.Mesh(
+
+        new THREE.BoxGeometry(
+            1.2,
+            1.7,
+            0.7
+        ),
+
+        new THREE.MeshStandardMaterial({
+            color:0x1677ff
+        })
+
+    );
+
+body.position.y = 2.1;
+
+body.castShadow = true;
+
+player.add(body);
+
+
+// CABEÇA
+
+const head =
+    new THREE.Mesh(
+
+        new THREE.SphereGeometry(
+            0.55,
+            32,
+            32
+        ),
+
+        new THREE.MeshStandardMaterial({
+            color:0xc98b65
+        })
+
+    );
+
+head.position.y = 3.35;
+
+head.castShadow = true;
+
+player.add(head);
+
+
+// CABELO
+
+const hair =
+    new THREE.Mesh(
+
+        new THREE.SphereGeometry(
+            0.58,
+            32,
+            16
+        ),
+
+        new THREE.MeshStandardMaterial({
+            color:0x111111
+        })
+
+    );
+
+hair.scale.y = 0.5;
+
+hair.position.y = 3.72;
+
+hair.castShadow = true;
+
+player.add(hair);
+
+
+// PERNA ESQUERDA
+
+const leg1 =
+    new THREE.Mesh(
+
+        new THREE.BoxGeometry(
+            0.45,
+            1.4,
+            0.5
+        ),
+
+        new THREE.MeshStandardMaterial({
+            color:0x111111
+        })
+
+    );
+
+leg1.position.set(
+    -0.3,
+    0.7,
+    0
+);
+
+leg1.castShadow = true;
+
+player.add(leg1);
+
+
+// PERNA DIREITA
+
+const leg2 =
+    new THREE.Mesh(
+
+        new THREE.BoxGeometry(
+            0.45,
+            1.4,
+            0.5
+        ),
+
+        new THREE.MeshStandardMaterial({
+            color:0x111111
+        })
+
+    );
+
+leg2.position.set(
+    0.3,
+    0.7,
+    0
+);
+
+leg2.castShadow = true;
+
+player.add(leg2);
+
+
+// BRAÇO ESQUERDO
+
+const arm1 =
+    new THREE.Mesh(
+
+        new THREE.BoxGeometry(
+            0.4,
+            1.4,
+            0.45
+        ),
+
+        new THREE.MeshStandardMaterial({
+            color:0x1677ff
+        })
+
+    );
+
+arm1.position.set(
+    -0.85,
+    2.1,
+    0
+);
+
+arm1.castShadow = true;
+
+player.add(arm1);
+
+
+// BRAÇO DIREITO
+
+const arm2 =
+    new THREE.Mesh(
+
+        new THREE.BoxGeometry(
+            0.4,
+            1.4,
+            0.45
+        ),
+
+        new THREE.MeshStandardMaterial({
+            color:0x1677ff
+        })
+
+    );
+
+arm2.position.set(
+    0.85,
+    2.1,
+    0
+);
+
+arm2.castShadow = true;
+
+player.add(arm2);
+
+
+// ================================
+// MOVIMENTO
+// ================================
+
+const keys = {};
+
+let velocidade = 0.08;
+
+document.addEventListener(
+    "keydown",
+    e => {
+        keys[e.key.toLowerCase()] = true;
+    }
+);
+
+document.addEventListener(
+    "keyup",
+    e => {
+        keys[e.key.toLowerCase()] = false;
+    }
+);
+
+
+// ================================
+// ANIMAÇÃO
+// ================================
+
+let tempo = 0;
+
+function animate(){
+
+    requestAnimationFrame(
+        animate
+    );
+
+    tempo += 0.08;
+
+
+    let andando = false;
+
+
+    if(keys["w"]){
+
+        player.position.z -= velocidade;
+
+        andando = true;
+    }
+
+    if(keys["s"]){
+
+        player.position.z += velocidade;
+
+        andando = true;
+    }
+
+    if(keys["a"]){
+
+        player.position.x -= velocidade;
+
+        andando = true;
+    }
+
+    if(keys["d"]){
+
+        player.position.x += velocidade;
+
+        andando = true;
+    }
+
+
+    // ANIMAÇÃO DAS PERNAS
+
+    if(andando){
+
+        leg1.rotation.x =
+            Math.sin(tempo) * 0.6;
+
+        leg2.rotation.x =
+            Math.sin(tempo + Math.PI) * 0.6;
+
+        arm1.rotation.x =
+            Math.sin(tempo + Math.PI) * 0.4;
+
+        arm2.rotation.x =
+            Math.sin(tempo) * 0.4;
+
+    }else{
+
+        leg1.rotation.x = 0;
+        leg2.rotation.x = 0;
+        arm1.rotation.x = 0;
+        arm2.rotation.x = 0;
+    }
+
+
+    // CÂMERA
+
+    camera.position.x =
+        player.position.x;
+
+    camera.position.z =
+        player.position.z + 8;
+
+    camera.position.y =
+        player.position.y + 4;
+
+
+    camera.lookAt(
+        player.position.x,
+        player.position.y + 2,
+        player.position.z
+    );
+
+
+    renderer.render(
+        scene,
+        camera
+    );
+}
+
+
+// ================================
+// TELA
+// ================================
+
+window.addEventListener(
+    "resize",
+    () => {
+
+        camera.aspect =
+            innerWidth / innerHeight;
+
+        camera.updateProjectionMatrix();
+
+        renderer.setSize(
+            innerWidth,
+            innerHeight
+        );
+    }
+);
+
+
+// ================================
+// INICIAR
+// ================================
+
+document
+    .getElementById("loading")
+    .remove();
+
+animate();
+
+</script>
+
+</body>
+</html>
