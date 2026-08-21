@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Battle Royale 3D</title>
+  <style>
+    body { margin: 0; overflow: hidden; font-family: sans-serif; user-select: none; }
+    #canvas-container { width: 100vw; height: 100vh; }
+    
+    /* UI do Lobby */
+    #lobby {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.85); color: white; display: flex;
+      flex-direction: column; align-items: center; justify-content: center; z-index: 10;
+    }
+    input, button { padding: 12px 20px; font-size: 16px; margin: 8px; border-radius: 8px; border: none; }
+    button { background: #ff4757; color: white; font-weight: bold; cursor: pointer; }
+
+    /* Controles Mobile */
+    #joystick-zone { position: absolute; bottom: 20px; left: 20px; width: 120px; height: 120px; z-index: 5; }
+    #jump-btn {
+      position: absolute; bottom: 40px; right: 30px; width: 70px; height: 70px;
+      border-radius: 50%; background: rgba(255, 255, 255, 0.5); color: black;
+      font-weight: bold; display: flex; align-items: center; justify-content: center; z-index: 5;
+    }
+  </style>
+
+  <!-- Bibliotecas externas via CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.10.1/nipplejs.min.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+</head>
+<body>
+
+  <!-- Interface do Lobby -->
+  <div id="lobby">
+    <h1>Battle Royale 3D</h1>
+    <p id="peer-id-display">Gerando ID da sala...</p>
+    <button onclick="iniciarJogo()">Jogar Solo / Criar Sala</button>
+    <hr style="width: 200px; margin: 15px 0;">
+    <input type="text" id="join-id" placeholder="ID do Amigo para Conectar">
+    <button onclick="conectarAmigo()">Entrar na Sala</button>
+  </div>
+
+  <!-- Controles Mobile na Tela -->
+  <div id="joystick-zone"></div>
+  <div id="jump-btn">PULAR</div>
+
+  <div id="canvas-container"></div>
+
+  <script>
+    let scene, camera, renderer, player, ground;
+    let moveData = { x: 0, y: 0 };
+    let playerVelocityY = 0;
+    let isGrounded = true;
+    let peer, conn, remotePlayers = {};
+
+    // 1. Configuração do PeerJS para Multiplayer Serverless
+    peer = new Peer();
+    peer.on('open', id => {
+      document.getElementById('peer-id-display').innerText = "Seu ID de Sala: " + id;
+    });
+
+    peer.on('connection', connection => {
+      conn = connection;
+      configurarConexao();
+    });
+
+    function conectarAmigo() {
+      const targetId = document.getElementById('join-id').value;
+      if (targetId) {
+        conn = peer.connect(targetId);
+        configurarConexao();
+        iniciarJogo();
+      }
+    }
+
+    function configurarConexao() {
+      conn.on('data', data => {
+        // Recebe posição dos outros jogadores
+        if (!remotePlayers[data.id]) {
+          const geo = new THREE.BoxGeometry(1, 2, 1);
+          const mat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+          remotePlayers[data.id] = new THREE.Mesh(geo, mat);
+          scene.add(remotePlayers[data.id]);
+        }
+        remotePlayers[data.id].position.set(data.x, data.y, data.z);
+      });
+    }
+
+    // 2. Inicialização do Mundo 3D
+    function init3D() {
+      const container = document.getElementById('canvas-container');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x87ceeb); // Céu azul
+
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      container.appendChild(renderer.domElement);
+
+      // Luz
+      const light = new THREE.DirectionalLight(0xffffff, 1);
+      light.position.set(10, 20, 10);
+      scene.add(light);
+      scene.add(new THREE.AmbientLight(0x404040));
+
+      // Chão (Mapa básico)
+      const groundGeo = new THREE.PlaneGeometry(100, 100);
+      const groundMat = new THREE.MeshLambertMaterial({ color: 0x2ed573 });
+      ground = new THREE.Mesh(groundGeo, groundMat);
+      ground.rotation.x = -Math.PI / 2;
+      scene.add(ground);
+
+      // Personagem Principal 3D (Cubo temporário configurado com altura humana)
+      const playerGeo = new THREE.BoxGeometry(1, 2, 1);
+      const playerMat = new THREE.MeshLambertMaterial({ color: 0xff4757 });
+      player = new THREE.Mesh(playerGeo, playerMat);
+      player.position.y = 1;
+      scene.add(player);
+
+      // Posição inicial da câmera em 3ª pessoa
+      camera.position.set(0, 4, 6);
+      camera.lookAt(player.position);
+
+      setupMobileControls();
+      animate();
+    }
+
+    // 3. Controles Touch para Celular
+    function setupMobileControls() {
+      const manager = nipplejs.create({
+        zone: document.getElementById('joystick-zone'),
+        mode: 'static',
+        position: { left: '60px', bottom: '60px' },
+        color: 'white'
+      });
+
+      manager.on('move', (evt, data) => {
+        if (data.vector) {
+          moveData.x = data.vector.x;
+          moveData.y = data.vector.y;
+        }
+      });
+
+      manager.on('end', () => {
+        moveData.x = 0;
+        moveData.y = 0;
+      });
+
+      document.getElementById('jump-btn').addEventListener('touchstart', pular);
+      document.getElementById('jump-btn').addEventListener('click', pular);
+    }
+
+    function pular() {
+      if (isGrounded) {
+        playerVelocityY = 0.2;
+        isGrounded = false;
+      }
+    }
+
+    // 4. Loop de Animação e Física
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // Movimentação do Personagem
+      const speed = 0.15;
+      player.position.x += moveData.x * speed;
+      player.position.z -= moveData.y * speed;
+
+      // Gravidade simples
+      player.position.y += playerVelocityY;
+      if (player.position.y > 1) {
+        playerVelocityY -= 0.01; // Gravidade puxando
+      } else {
+        player.position.y = 1;
+        playerVelocityY = 0;
+        isGrounded = true;
+      }
+
+      // Câmera seguindo o jogador em 3ª Pessoa
+      camera.position.x = player.position.x;
+      camera.position.z = player.position.z + 6;
+      camera.position.y = player.position.y + 3;
+      camera.lookAt(player.position.x, player.position.y + 0.5, player.position.z);
+
+      // Enviar dados para o outro jogador no multiplayer
+      if (conn && conn.open) {
+        conn.send({
+          id: peer.id,
+          x: player.position.x,
+          y: player.position.y,
+          z: player.position.z
+        });
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    function iniciarJogo() {
+      document.getElementById('lobby').style.display = 'none';
+      init3D();
+    }
+
+    // Ajustar tela ao girar o celular
+    window.addEventListener('resize', () => {
+      if (camera && renderer) {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+    });
+  </script>
+</body>
+</html>
