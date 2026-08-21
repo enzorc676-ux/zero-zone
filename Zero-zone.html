@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zero Zone 3D - Battle Royale</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: sans-serif; background: #000; }
+        #crosshair {
+            position: absolute; top: 50%; left: 50%;
+            width: 10px; height: 10px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        #hud {
+            position: absolute; top: 10px; left: 10px;
+            color: #fff; font-size: 18px; font-weight: bold;
+            text-shadow: 1px 1px 3px #000;
+            pointer-events: none;
+        }
+        #instructions {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); color: white;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            cursor: pointer; z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="crosshair"></div>
+    <div id="hud">
+        Vida: <span id="health">100</span> | Vivos: <span id="alive">10</span>
+    </div>
+    <div id="instructions">
+        <h1>ZERO ZONE - BATTLE ROYALE</h1>
+        <p>Clique aqui para Jogar</p>
+        <p>Controles: WASD (Mover) | MOUSE (Olhar/Mirar) | CLIQUE ESQUERDO (Atirar)</p>
+    </div>
+
+    <!-- Biblioteca Three.js para gráficos 3D -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // --- CONFIGURAÇÃO DA CENA E CAMERA ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87ceeb);
+        scene.fog = new THREE.FogExp2(0x87ceeb, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // --- ILUMINAÇÃO ---
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
+        scene.add(hemiLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(50, 100, 50);
+        scene.add(dirLight);
+
+        // --- MAPA / TERRENO ---
+        const groundGeo = new THREE.PlaneGeometry(200, 200);
+        const groundMat = new THREE.MeshLambertMaterial({ color: 0x2e8b57 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        scene.add(ground);
+
+        // Adicionar Obstáculos (Caixas/Casas)
+        const boxes = [];
+        for (let i = 0; i < 30; i++) {
+            const boxGeo = new THREE.BoxGeometry(4, 4, 4);
+            const boxMat = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
+            const box = new THREE.Mesh(boxGeo, boxMat);
+            box.position.set((Math.random() - 0.5) * 160, 2, (Math.random() - 0.5) * 160);
+            scene.add(box);
+            boxes.push(box);
+        }
+
+        // --- A ZONA DE SEGURANÇA (SAFE ZONE) ---
+        let zoneRadius = 90;
+        const zoneGeo = new THREE.CylinderGeometry(zoneRadius, zoneRadius, 50, 32, 1, true);
+        const zoneMat = new THREE.MeshBasicMaterial({ color: 0x0000ff, side: THREE.DoubleSide, transparent: true, opacity: 0.3 });
+        const zoneMesh = new THREE.Mesh(zoneGeo, zoneMat);
+        zoneMesh.position.y = 25;
+        scene.add(zoneMesh);
+
+        // --- JOGADOR E INIMIGOS (BOTS) ---
+        let playerHealth = 100;
+        const enemies = [];
+        let aliveCount = 10;
+
+        function createEnemy(x, z) {
+            const geo = new THREE.CapsuleGeometry(1, 2, 4, 8);
+            const mat = new THREE.MeshLambertMaterial({ color: 0xff0000 });
+            const enemy = new THREE.Mesh(geo, mat);
+            enemy.position.set(x, 2, z);
+            enemy.userData = { health: 50 };
+            scene.add(enemy);
+            enemies.push(enemy);
+        }
+
+        for (let i = 0; i < aliveCount - 1; i++) {
+            createEnemy((Math.random() - 0.5) * 140, (Math.random() - 0.5) * 140);
+        }
+
+        // --- CONTROLES DE MOVIMENTAÇÃO (POINTER LOCK) ---
+        const instructions = document.getElementById('instructions');
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        let yaw = 0, pitch = 0;
+
+        instructions.addEventListener('click', () => {
+            document.body.requestPointerLock();
+        });
+
+        document.addEventListener('pointerlockchange', () => {
+            if (document.pointerLockElement === document.body) {
+                instructions.style.display = 'none';
+            } else {
+                instructions.style.display = 'flex';
+            }
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (document.pointerLockElement === document.body) {
+                yaw -= e.movementX * 0.002;
+                pitch -= e.movementY * 0.002;
+                pitch = Math.max(-Math.PI / 2.5, Math.min(Math.PI / 2.5, pitch));
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyW') moveForward = true;
+            if (e.code === 'KeyS') moveBackward = true;
+            if (e.code === 'KeyA') moveLeft = true;
+            if (e.code === 'KeyD') moveRight = true;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.code === 'KeyW') moveForward = false;
+            if (e.code === 'KeyS') moveBackward = false;
+            if (e.code === 'KeyA') moveLeft = false;
+            if (e.code === 'KeyD') moveRight = false;
+        });
+
+        camera.position.set(0, 2, 0);
+
+        // --- SISTEMA DE TIRO ---
+        const raycaster = new THREE.Raycaster();
+        document.addEventListener('mousedown', (e) => {
+            if (document.pointerLockElement !== document.body || e.button !== 0) return;
+
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            const intersects = raycaster.intersectObjects(enemies);
+
+            if (intersects.length > 0) {
+                const target = intersects[0].object;
+                target.userData.health -= 25;
+                if (target.userData.health <= 0) {
+                    scene.remove(target);
+                    enemies.splice(enemies.indexOf(target), 1);
+                    aliveCount--;
+                    document.getElementById('alive').innerText = aliveCount;
+                }
+            }
+        });
+
+        // --- LOOP PRINCIPAL DO JOGO ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+
+            if (document.pointerLockElement === document.body) {
+                // Atualizar Rotação da Câmera
+                camera.rotation.order = "YXZ";
+                camera.rotation.y = yaw;
+                camera.rotation.x = pitch;
+
+                // Mover Jogador
+                const speed = 15 * delta;
+                const dir = new THREE.Vector3();
+                if (moveForward) dir.z -= 1;
+                if (moveBackward) dir.z += 1;
+                if (moveLeft) dir.x -= 1;
+                if (moveRight) dir.x += 1;
+                dir.normalize();
+                dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+                camera.position.addScaledVector(dir, speed);
+
+                // Encolher a Zona
+                if (zoneRadius > 5) {
+                    zoneRadius -= delta * 0.8;
+                    zoneMesh.scale.set(zoneRadius / 90, 1, zoneRadius / 90);
+                }
+
+                // Dano do Gás no Jogador
+                const distFromCenter = Math.hypot(camera.position.x, camera.position.z);
+                if (distFromCenter > zoneRadius) {
+                    playerHealth -= delta * 5;
+                    document.getElementById('health').innerText = Math.max(0, Math.floor(playerHealth));
+                    if (playerHealth <= 0) {
+                        alert("Você morreu na Zone!");
+                        location.reload();
+                    }
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
